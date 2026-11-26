@@ -5,6 +5,9 @@ description = "Research, backtesting, and paper trading for perpetual futures"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 
+[project.scripts]
+atl-backtest = "autonomous_trading_lab.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

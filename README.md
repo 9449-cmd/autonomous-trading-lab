@@ -11,8 +11,10 @@ Private research platform for leveraged cryptocurrency perpetual-futures strateg
 - Fee, slippage, signed funding-rate assumptions and equity curve.
 - Daily-loss and peak-to-trough drawdown stop limits.
 - Fail-closed simulated pre-trade risk checks.
+- Local CSV import and deterministic JSON/Markdown backtest reports.
+- `atl-backtest` CLI to run a CSV backtest and write both reports.
 
-The engine is intentionally small and educational. It does not model order books, latency, partial fills, liquidation mechanics, exchange-specific funding schedules, or survivorship/data-quality issues. Validate these before relying on any research result. There is no live-trading path.
+The engine is intentionally small and educational. It does not model order books, latency, partial fills, liquidation mechanics, exchange-specific funding schedules, or survivorship/data-quality issues.
 
 ## Setup
 
@@ -26,7 +28,15 @@ python -m pip install -r requirements-dev.txt
 pytest
 ```
 
-## Quick example
+## Quick CLI run
+
+```bash
+atl-backtest data/sample_candles.csv --output artifacts --fast-window 2 --slow-window 3
+```
+
+The command writes `artifacts/backtest-report.json` and `artifacts/backtest-report.md`. See [docs/CLI.md](docs/CLI.md) for all parameters and [docs/CSV_DATA.md](docs/CSV_DATA.md) for the input format.
+
+## Python example
 
 ```python
 from datetime import datetime, timedelta, timezone

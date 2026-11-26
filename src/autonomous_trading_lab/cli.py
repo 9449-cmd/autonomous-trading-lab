@@ -1,52 +1,68 @@
-"""CLI for local backtest demonstrations.
-
-Usage: python -m autonomous_trading_lab.cli
-"""
+"""Command-line entry point for local CSV backtests."""
 
 from __future__ import annotations
 
 import argparse
-import json
-from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Sequence
 
-from .engine import BacktestConfig, Candle, run_backtest
+from .data import load_candles_csv
+from .engine import BacktestConfig, run_backtest
+from .reporting import build_backtest_report, write_backtest_report
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run a local, simulated backtest")
-    parser.add_argument("--initial-equity", type=float, default=10_000.0)
-    parser.add_argument("--max-leverage", type=float, default=1.0)
-    parser.add_argument("--fast-window", type=int, default=5)
-    parser.add_argument("--slow-window", type=int, default=20)
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="atl-backtest",
+        description="Run a research-only backtest on a local candle CSV and write JSON/Markdown reports.",
+    )
+    parser.add_argument("csv", type=Path, help="input CSV with timestamp,open,high,low,close columns")
+    parser.add_argument("--output", type=Path, default=Path("artifacts"), help="report output directory (default: artifacts)")
+    parser.add_argument("--fast-window", type=int, default=5, help="fast SMA window (default: 5)")
+    parser.add_argument("--slow-window", type=int, default=20, help="slow SMA window (default: 20)")
+    parser.add_argument("--initial-equity", type=float, default=10_000.0, help="starting simulated equity")
+    parser.add_argument("--max-leverage", type=float, default=1.0, help="maximum simulated exposure multiple")
+    parser.add_argument("--fee-rate", type=float, default=0.0004, help="fee rate per unit turnover")
+    parser.add_argument("--slippage-rate", type=float, default=0.0002, help="slippage rate per unit turnover")
     return parser
 
 
-def main() -> None:
-    args = build_parser().parse_args()
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    prices = (100, 101, 99, 98, 97, 100, 104, 106, 103, 101,
-              105, 108, 110, 107, 104, 102, 106, 112, 115, 111,
-              109, 113, 117, 114, 118, 121, 119, 116, 120, 124)
-    bars = [
-        Candle(start + timedelta(hours=i), p, p, p, p, volume=1.0)
-        for i, p in enumerate(prices)
-    ]
-    config = BacktestConfig(initial_equity=args.initial_equity, max_leverage=args.max_leverage)
-    result = run_backtest(
-        bars,
-        fast_window=args.fast_window,
-        slow_window=args.slow_window,
-        config=config,
-    )
-    print(json.dumps({
-        "initial_equity": result.initial_equity,
-        "final_equity": round(result.final_equity, 6),
-        "total_return_pct": round(result.total_return_pct, 6),
-        "max_drawdown_pct": round(result.max_drawdown_pct, 6),
-        "trades": result.trades,
-        "stopped_reason": result.stopped_reason,
-    }, indent=2))
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the CLI; return zero on success and let argparse report bad input."""
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    if args.fast_window < 1 or args.slow_window <= args.fast_window:
+        parser.error("Require 1 <= --fast-window < --slow-window")
+
+    try:
+        candles = load_candles_csv(args.csv)
+        config = BacktestConfig(
+            initial_equity=args.initial_equity,
+            max_leverage=args.max_leverage,
+            fee_rate=args.fee_rate,
+            slippage_rate=args.slippage_rate,
+        )
+        result = run_backtest(
+            candles,
+            fast_window=args.fast_window,
+            slow_window=args.slow_window,
+            config=config,
+        )
+        report = build_backtest_report(
+            result,
+            candles,
+            config=config,
+            fast_window=args.fast_window,
+            slow_window=args.slow_window,
+        )
+        json_path, markdown_path = write_backtest_report(report, args.output)
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
+
+    print(f"JSON report: {json_path}")
+    print(f"Markdown report: {markdown_path}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
