@@ -2,27 +2,50 @@
 
 Private research platform for leveraged cryptocurrency perpetual-futures strategies.
 
-> This repository is for historical research, backtesting, and simulated trading only. It does not execute live orders.
+> **Research and simulation only.** This project has no exchange connectivity, live order API, credential handling, or deployment automation. Nothing here is financial advice.
 
-## Initial scope
+## Current MVP
 
-- Cryptocurrency perpetual contract market data
-- Volatility-aware trend-following baseline
-- Funding-rate constraints
-- Position and portfolio risk limits
-- Backtesting and paper trading
-- Reproducible audit records
+- Typed OHLCV/funding candles and deterministic moving-average signal baseline.
+- Close-to-close backtest; a signal observed at a candle close is used for the next interval.
+- Fee, slippage, signed funding-rate assumptions and equity curve.
+- Daily-loss and peak-to-trough drawdown stop limits.
+- Fail-closed simulated pre-trade risk checks.
 
-## Safety policy
+The engine is intentionally small and educational. It does not model order books, latency, partial fills, liquidation mechanics, exchange-specific funding schedules, or survivorship/data-quality issues. Validate these before relying on any research result. There is no live-trading path.
 
-- No live order API is enabled in this repository.
-- Backtests must model fees, slippage, funding, latency, and liquidation.
-- Paper trading must remain separate from real exchange credentials.
-- Strategy signals are advisory and are not financial advice.
+## Setup
 
-## Planned stack
+Requires Python 3.11+.
 
-- Python / FastAPI
-- PostgreSQL / TimescaleDB
-- React / Next.js
-- Docker Compose
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+python -m pip install -e .
+python -m pip install -r requirements-dev.txt
+pytest
+```
+
+## Quick example
+
+```python
+from datetime import datetime, timedelta, timezone
+from autonomous_trading_lab import BacktestConfig, Candle, run_backtest
+
+start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+prices = [100, 99, 101, 102, 98, 97, 100, 103]
+bars = [
+    Candle(start + timedelta(hours=i), p, p, p, p, volume=1.0)
+    for i, p in enumerate(prices)
+]
+result = run_backtest(bars, fast_window=2, slow_window=3, config=BacktestConfig())
+print(result.final_equity, result.total_return_pct, result.max_drawdown_pct)
+```
+
+Funding rates are decimal rates per candle: positive values represent longs paying shorts. The model applies funding to the signed exposure once per candle; supply data at the intended funding interval.
+
+## Safety boundaries
+
+- Never add real exchange secrets to this repository or local `.env` files committed to Git.
+- The package deliberately contains no exchange client or order-submission code.
+- Simulated risk checks are not a guarantee of capital preservation.
